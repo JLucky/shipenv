@@ -14,7 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_SCRIPT="$SCRIPT_DIR/dotenvx-env-sync.sh"
-REMOTE_SOURCE_URL="${DOTENVX_SYNC_SCRIPT_URL:-https://raw.githubusercontent.com/chekusu/shipkey/main/scripts/dotenvx-env-sync.sh}"
+REMOTE_SOURCE_URL="${DOTENVX_SYNC_SCRIPT_URL:-https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/dotenvx-env-sync.sh}"
 TEMP_SOURCE_SCRIPT=""
 
 TARGET_DIR="."
