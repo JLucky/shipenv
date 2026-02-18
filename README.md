@@ -1,3 +1,5 @@
+# [中文](README.md) | [English](README.en.md)
+
 # shipenv
 
 `shipenv` 提供一套可复用脚本，用于在任意项目中快速启用 `dotenvx` 的「明文本地保存、密文入库同步」工作流。
