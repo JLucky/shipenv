@@ -192,6 +192,28 @@ if (changed) {
   fi
 }
 
+resolve_managed_env_files() {
+  local sync_config="$TARGET_DIR/.dotenvx-sync-files"
+  local managed_files=()
+
+  if [ -f "$sync_config" ]; then
+    local line
+    while IFS= read -r line || [ -n "$line" ]; do
+      line="${line%%#*}"
+      line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      if [ -n "$line" ]; then
+        managed_files+=("$line")
+      fi
+    done < "$sync_config"
+  fi
+
+  if [ "${#managed_files[@]}" -eq 0 ]; then
+    managed_files=(".env.development" ".env.production")
+  fi
+
+  printf '%s\n' "${managed_files[@]}"
+}
+
 update_gitignore() {
   local gitignore="$TARGET_DIR/.gitignore"
 
@@ -199,22 +221,26 @@ update_gitignore() {
     touch "$gitignore"
   fi
 
-  if rg -q "# >>> dotenvx encrypted env sync >>>|!\.env\.development\.encrypted|!\.env\.production\.encrypted" "$gitignore" 2>/dev/null; then
+  if rg -q "# >>> dotenvx encrypted env sync >>>" "$gitignore" 2>/dev/null; then
     info ".gitignore already contains dotenvx block"
     return
   fi
 
-  cat >> "$gitignore" <<'EOF'
+  local managed_files
+  mapfile -t managed_files < <(resolve_managed_env_files)
 
-# >>> dotenvx encrypted env sync >>>
-.env*
-!.env.development.encrypted
-!.env.production.encrypted
-!.env.example
-!.env.production.example
-.env.keys
-# <<< dotenvx encrypted env sync <<<
-EOF
+  {
+    echo ""
+    echo "# >>> dotenvx encrypted env sync >>>"
+    echo ".env*"
+    local file
+    for file in "${managed_files[@]}"; do
+      echo "!${file}.encrypted"
+    done
+    echo "!.env.example"
+    echo ".env.keys"
+    echo "# <<< dotenvx encrypted env sync <<<"
+  } >> "$gitignore"
 
   info "Updated .gitignore"
 }
