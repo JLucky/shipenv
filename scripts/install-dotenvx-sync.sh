@@ -12,7 +12,8 @@ set -euo pipefail
 #   -h, --help                   Show help
 # ============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 SOURCE_SCRIPT="$SCRIPT_DIR/dotenvx-env-sync.sh"
 REMOTE_SOURCE_URL="${DOTENVX_SYNC_SCRIPT_URL:-https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/dotenvx-env-sync.sh}"
 TEMP_SOURCE_SCRIPT=""
@@ -226,14 +227,16 @@ update_gitignore() {
     return
   fi
 
-  local managed_files
-  mapfile -t managed_files < <(resolve_managed_env_files)
+  local managed_files=()
+  local file
+  while IFS= read -r file; do
+    managed_files+=("$file")
+  done < <(resolve_managed_env_files)
 
   {
     echo ""
     echo "# >>> dotenvx encrypted env sync >>>"
     echo ".env*"
-    local file
     for file in "${managed_files[@]}"; do
       echo "!${file}.encrypted"
     done
