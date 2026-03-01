@@ -97,7 +97,7 @@ bun run env:unseal
 - Do not commit: `.env.keys`, any plaintext `.env*`
 - Store `.env.keys` in 1Password / Bitwarden or another password manager
 - You can also inject private keys through env vars (for example `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`)
-- Commented config lines that match `KEY=VALUE` (for example `#API_KEY=xxx`) are now encrypted on `seal` and restored as comments on `unseal`
+- Commented config lines in env style (for example `#API_KEY=xxx` and `# API_KEY = xxx`) are encrypted on `seal` and restored as comments on `unseal`
 
 ## Troubleshooting
 

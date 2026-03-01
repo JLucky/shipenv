@@ -97,7 +97,7 @@ bun run env:unseal
 - 不提交：`.env.keys`、任何明文 `.env*`
 - 建议把 `.env.keys` 保存在 1Password/Bitwarden 等密码管理器中
 - 也可使用环境变量注入私钥（如 `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`）
-- 以 `#` 开头且符合 `KEY=VALUE` 的注释配置（如 `#API_KEY=xxx`）也会在 `seal` 时加密，`unseal` 时恢复为注释格式
+- 以 `#` 开头且符合注释配置格式的行（如 `#API_KEY=xxx`、`# API_KEY = xxx`）会在 `seal` 时加密，`unseal` 时恢复为注释格式
 
 ## 故障排查
 

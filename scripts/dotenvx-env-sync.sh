@@ -96,7 +96,7 @@ encrypted_path_for() {
 trim_decrypted_meta() {
   awk '
     /^#\// { next }
-    /^DOTENV_PUBLIC_KEY_[A-Z0-9_]+=.*$/ { next }
+    /^DOTENV_PUBLIC_KEY[^=]*=.*$/ { next }
     { print }
   ' | sed '/./,$!d'
 }
@@ -108,23 +108,41 @@ commented_env_to_placeholder() {
   awk -v mode="$mode" -v prefix="$COMMENTED_ENV_PLACEHOLDER_PREFIX" '
     BEGIN { idx = 0 }
     {
-      if ($0 ~ /^[[:space:]]*#[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=.*/) {
+      if ($0 ~ /^[[:space:]]*#[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=.*/) {
         line = $0
         sub(/^[[:space:]]*#[[:space:]]*/, "", line)
 
-        key = line
-        sub(/=.*/, "", key)
+        eq_pos = index(line, "=")
+        if (eq_pos == 0) {
+          print
+          next
+        }
 
-        value = line
-        sub(/^[^=]*=/, "", value)
+        key = substr(line, 1, eq_pos - 1)
+        sub(/^[[:space:]]+/, "", key)
+        sub(/[[:space:]]+$/, "", key)
+        if (key !~ /^[A-Za-z_][A-Za-z0-9_]*$/) {
+          print
+          next
+        }
 
-        if (mode == "encrypted" && value !~ /^encrypted:/) {
+        value = substr(line, eq_pos + 1)
+        value_ltrim = value
+        sub(/^[[:space:]]+/, "", value_ltrim)
+
+        encrypted_candidate = value_ltrim
+        first_char = substr(encrypted_candidate, 1, 1)
+        if (first_char == "\"" || first_char == sprintf("%c", 39)) {
+          encrypted_candidate = substr(encrypted_candidate, 2)
+        }
+
+        if (mode == "encrypted" && encrypted_candidate !~ /^encrypted:/) {
           print
           next
         }
 
         idx += 1
-        printf "%s_%06d__%s=%s\n", prefix, idx, key, value
+        printf "%s_%06d__%s=%s\n", prefix, idx, key, value_ltrim
         next
       }
 
@@ -348,17 +366,20 @@ cmd_seal() {
     fi
 
     local encrypted_file
+    local tmp_plain_dir
     local tmp_plain_file
     local tmp_encrypted_file
     encrypted_file="$(encrypted_path_for "$plain_file")"
-    tmp_plain_file="$(mktemp)"
+    tmp_plain_dir="$(mktemp -d)"
+    tmp_plain_file="$tmp_plain_dir/$(basename "$plain_file")"
     tmp_encrypted_file="$(mktemp)"
 
     commented_env_to_placeholder "$plain_file" plain > "$tmp_plain_file"
     run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" --stdout > "$tmp_encrypted_file"
     placeholder_to_commented_env "$tmp_encrypted_file" > "$encrypted_file"
 
-    rm -f "$tmp_plain_file" "$tmp_encrypted_file"
+    rm -f "$tmp_encrypted_file"
+    rm -rf "$tmp_plain_dir"
     info "$plain_file  →  $encrypted_file"
     ((count+=1))
   done
