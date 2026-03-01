@@ -16,6 +16,7 @@ set -euo pipefail
 
 ENV_KEYS_FILE="${DOTENVX_ENV_KEYS_FILE:-.env.keys}"
 SYNC_FILES_CONFIG="${DOTENVX_SYNC_FILES_CONFIG:-.dotenvx-sync-files}"
+COMMENTED_ENV_PLACEHOLDER_PREFIX="DOTENVX_SYNC_COMMENTED"
 
 DEFAULT_PLAIN_ENV_FILES=(
   ".env.development"
@@ -98,6 +99,59 @@ trim_decrypted_meta() {
     /^DOTENV_PUBLIC_KEY_[A-Z0-9_]+=.*$/ { next }
     { print }
   ' | sed '/./,$!d'
+}
+
+commented_env_to_placeholder() {
+  local input_file="$1"
+  local mode="${2:-plain}"
+
+  awk -v mode="$mode" -v prefix="$COMMENTED_ENV_PLACEHOLDER_PREFIX" '
+    BEGIN { idx = 0 }
+    {
+      if ($0 ~ /^[[:space:]]*#[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=.*/) {
+        line = $0
+        sub(/^[[:space:]]*#[[:space:]]*/, "", line)
+
+        key = line
+        sub(/=.*/, "", key)
+
+        value = line
+        sub(/^[^=]*=/, "", value)
+
+        if (mode == "encrypted" && value !~ /^encrypted:/) {
+          print
+          next
+        }
+
+        idx += 1
+        printf "%s_%06d__%s=%s\n", prefix, idx, key, value
+        next
+      }
+
+      print
+    }
+  ' "$input_file"
+}
+
+placeholder_to_commented_env() {
+  awk -v prefix="$COMMENTED_ENV_PLACEHOLDER_PREFIX" '
+    {
+      if ($0 ~ ("^" prefix "_[0-9]+__[A-Za-z_][A-Za-z0-9_]*=.*")) {
+        line = $0
+        sub("^" prefix "_[0-9]+__", "", line)
+
+        key = line
+        sub(/=.*/, "", key)
+
+        value = line
+        sub(/^[^=]*=/, "", value)
+
+        printf "#%s=%s\n", key, value
+        next
+      }
+      print
+    }
+  ' "$@"
 }
 
 add_plain_env_file() {
@@ -294,8 +348,17 @@ cmd_seal() {
     fi
 
     local encrypted_file
+    local tmp_plain_file
+    local tmp_encrypted_file
     encrypted_file="$(encrypted_path_for "$plain_file")"
-    run_dotenvx encrypt -f "$plain_file" -fk "$ENV_KEYS_FILE" --stdout > "$encrypted_file"
+    tmp_plain_file="$(mktemp)"
+    tmp_encrypted_file="$(mktemp)"
+
+    commented_env_to_placeholder "$plain_file" plain > "$tmp_plain_file"
+    run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" --stdout > "$tmp_encrypted_file"
+    placeholder_to_commented_env "$tmp_encrypted_file" > "$encrypted_file"
+
+    rm -f "$tmp_plain_file" "$tmp_encrypted_file"
     info "$plain_file  →  $encrypted_file"
     ((count+=1))
   done
@@ -346,8 +409,14 @@ cmd_unseal() {
     fi
 
     local tmp_file
+    local tmp_encrypted_file
     tmp_file="$(mktemp)"
-    run_dotenvx decrypt -f "$encrypted_file" -fk "$ENV_KEYS_FILE" --stdout | trim_decrypted_meta > "$tmp_file"
+    tmp_encrypted_file="$(mktemp)"
+
+    commented_env_to_placeholder "$encrypted_file" encrypted > "$tmp_encrypted_file"
+    run_dotenvx decrypt -f "$tmp_encrypted_file" -fk "$ENV_KEYS_FILE" --stdout | trim_decrypted_meta | placeholder_to_commented_env > "$tmp_file"
+
+    rm -f "$tmp_encrypted_file"
     mv "$tmp_file" "$plain_file"
     info "$encrypted_file  →  $plain_file"
     ((count+=1))
