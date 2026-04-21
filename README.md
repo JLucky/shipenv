@@ -12,14 +12,18 @@
 ## 一键安装（新项目中执行）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- .
+curl --retry 3 --connect-timeout 10 --max-time 60 -fsSL \
+  https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- .
 ```
 
 可选：安装时同时把 `@dotenvx/dotenvx` 加到当前项目 devDependencies：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- . --install-dotenvx
+curl --retry 3 --connect-timeout 10 --max-time 60 -fsSL \
+  https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- . --install-dotenvx
 ```
+
+安装器已内置 `dotenvx-env-sync.sh`，通过 `curl | bash` 执行时只需要下载这一个远程脚本。
 
 ## 安装后会自动添加
 

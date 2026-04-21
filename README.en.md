@@ -12,14 +12,18 @@
 ## One-command Install (run in a new project)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- .
+curl --retry 3 --connect-timeout 10 --max-time 60 -fsSL \
+  https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- .
 ```
 
 Optional: install `@dotenvx/dotenvx` into your current project as dev dependency during setup:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- . --install-dotenvx
+curl --retry 3 --connect-timeout 10 --max-time 60 -fsSL \
+  https://raw.githubusercontent.com/JLucky/shipenv/main/scripts/install-dotenvx-sync.sh | bash -s -- . --install-dotenvx
 ```
+
+The installer now bundles `dotenvx-env-sync.sh`, so `curl | bash` only needs this single remote download.
 
 ## What gets added automatically
 
