@@ -48,3 +48,5 @@ for (const [name, command] of Object.entries(requiredScripts)) {
 grep -Fq "# >>> dotenvx encrypted env sync >>>" "$project_dir/.gitignore"
 grep -Fq "!.env.development.encrypted" "$project_dir/.gitignore"
 grep -Fq "!.env.production.encrypted" "$project_dir/.gitignore"
+grep -Fxq "wrangler.toml" "$project_dir/.gitignore"
+grep -Fq "!wrangler.toml.encrypted" "$project_dir/.gitignore"
