@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # ============================================================================
-# dotenvx-env-sync: keep plaintext .env files local and commit encrypted copies
+# dotenvx-env-sync: keep plaintext managed files local and commit encrypted copies
 # Usage:
 #   ./scripts/dotenvx-env-sync.sh <seal|unseal|check|help> [options]
 #
 # Options:
-#   --files ".env,.env.dev,.env.prod"   Explicit files (comma/space separated)
+#   --files ".env,.env.dev,.env.prod,wrangler.toml" Explicit files (comma/space separated)
 #   --all-env                            Auto-manage all local .env/.env.* files
 #   --force                              Overwrite plaintext when unsealing
 #   --keys-file .env.keys                Override dotenvx key file path
@@ -21,6 +21,7 @@ COMMENTED_ENV_PLACEHOLDER_PREFIX="DOTENVX_SYNC_COMMENTED"
 DEFAULT_PLAIN_ENV_FILES=(
   ".env.development"
   ".env.production"
+  "wrangler.toml"
 )
 
 COMMAND="help"
@@ -267,12 +268,12 @@ resolve_plain_env_files() {
   fi
 
   if [ "${#PLAIN_ENV_FILES[@]}" -eq 0 ]; then
-    err "No env files resolved"
+    err "No managed files resolved"
     echo ""
     echo "  Try one of:"
     echo "    --all-env"
-    echo "    --files '.env,.env.dev,.env.prod'"
-    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod'"
+    echo "    --files '.env,.env.dev,.env.prod,wrangler.toml'"
+    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod,wrangler.toml'"
     echo "    echo '.env.dev' > $SYNC_FILES_CONFIG"
     echo ""
     exit 1
@@ -352,7 +353,7 @@ print_managed_files() {
 }
 
 cmd_seal() {
-  title "Sealing env files with dotenvx"
+  title "Sealing managed files with dotenvx"
   detect_dotenvx
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
@@ -385,7 +386,7 @@ cmd_seal() {
   done
 
   if [ "$count" -eq 0 ]; then
-    err "No plaintext .env file found to seal"
+    err "No plaintext managed file found to seal"
     exit 1
   fi
 
@@ -402,7 +403,7 @@ cmd_seal() {
 }
 
 cmd_unseal() {
-  title "Unsealing env files from encrypted copies"
+  title "Unsealing managed files from encrypted copies"
   detect_dotenvx
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
@@ -463,7 +464,7 @@ cmd_unseal() {
 }
 
 cmd_check() {
-  title "dotenvx env sync status"
+  title "dotenvx managed file sync status"
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
   echo ""
@@ -517,7 +518,7 @@ cmd_check() {
 
 cmd_help() {
   echo ""
-  echo -e "${BOLD}dotenvx-env-sync${NC} — commit encrypted env files, keep plaintext local"
+  echo -e "${BOLD}dotenvx-env-sync${NC} — commit encrypted managed files, keep plaintext local"
   echo ""
   echo "Usage: $0 <command> [options]"
   echo ""
@@ -538,10 +539,10 @@ cmd_help() {
   echo "  2) --files"
   echo "  3) DOTENVX_SYNC_FILES env var"
   echo "  4) $SYNC_FILES_CONFIG"
-  echo "  5) defaults: .env.development, .env.production"
+  echo "  5) defaults: .env.development, .env.production, wrangler.toml"
   echo ""
   echo "Examples:"
-  echo "  $0 seal --files '.env,.env.dev,.env.prod'"
+  echo "  $0 seal --files '.env,.env.dev,.env.prod,wrangler.toml'"
   echo "  $0 unseal --all-env"
   echo "  DOTENVX_SYNC_FILES='.env,.env.preview' $0 check"
   echo ""
