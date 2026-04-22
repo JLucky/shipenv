@@ -2,7 +2,7 @@
 
 # shipenv
 
-`shipenv` 提供一套可复用脚本，用于在任意项目中快速启用 `dotenvx` 的「明文本地保存、密文入库同步」工作流。
+`shipenv` 提供一套可复用脚本，用于在任意项目中快速启用 `dotenvx` 的「明文本地保存、密文入库同步」工作流，默认会处理 `.env.development`、`.env.production` 和 `wrangler.toml`。
 
 ## 仓库内容
 
@@ -42,7 +42,7 @@ curl --retry 3 --connect-timeout 10 --max-time 60 -fsSL \
 ## 日常使用流程
 
 ```bash
-# 1) 本机更新本地 env 明文
+# 1) 本机更新本地 env / wrangler 明文
 
 # 2) 生成/更新密文文件
 bun run env:seal
@@ -61,7 +61,7 @@ bun run env:unseal
 bun run env:unseal:force
 ```
 
-## 选择要处理的 env 文件
+## 选择要处理的文件
 
 `dotenvx-env-sync.sh` 支持 5 级优先级：
 
@@ -69,13 +69,13 @@ bun run env:unseal:force
 2. `--files`
 3. 环境变量 `DOTENVX_SYNC_FILES`
 4. 项目根 `.dotenvx-sync-files`
-5. 默认：`.env.development`, `.env.production`
+5. 默认：`.env.development`, `.env.production`, `wrangler.toml`
 
 ### 示例：显式指定文件名
 
 ```bash
-bun run env:seal -- --files ".env,.env.dev,.env.prod"
-bun run env:unseal -- --files ".env,.env.dev,.env.prod"
+bun run env:seal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
+bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
 ```
 
 ### 示例：团队固定文件配置
@@ -86,6 +86,7 @@ bun run env:unseal -- --files ".env,.env.dev,.env.prod"
 .env
 .env.dev
 .env.prod
+wrangler.toml
 ```
 
 然后团队直接执行：
@@ -95,13 +96,21 @@ bun run env:seal
 bun run env:unseal
 ```
 
+### 兼容性说明
+
+- 老项目如果此前只在同步 `.env*`，升级后默认也会把 `wrangler.toml` 视为受管文件之一
+- 如果项目里没有 `wrangler.toml`，`seal` / `unseal` / `check` 只会提示 skipped，不会破坏现有 `.env*.encrypted`
+- 如果项目里已有本地 `wrangler.toml`，下次 `seal` 会默认生成 `wrangler.toml.encrypted`
+- 如果仓库里已有 `wrangler.toml.encrypted`，下次 `unseal` 会默认尝试恢复 `wrangler.toml`
+
 ## 安全建议
 
 - 提交：`*.encrypted`
-- 不提交：`.env.keys`、任何明文 `.env*`
+- 不提交：`.env.keys`、任何明文 `.env*`、明文 `wrangler.toml`
 - 建议把 `.env.keys` 保存在 1Password/Bitwarden 等密码管理器中
 - 也可使用环境变量注入私钥（如 `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`）
 - 以 `#` 开头且符合注释配置格式的行（如 `#API_KEY=xxx`、`# API_KEY = xxx`）会在 `seal` 时加密，`unseal` 时恢复为注释格式
+- `wrangler.toml` 经过 `seal` / `unseal` 后，内容会恢复，但空格格式可能被 `dotenvx` 规范化
 
 ## 故障排查
 
