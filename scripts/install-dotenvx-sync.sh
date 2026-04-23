@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# install-dotenvx-sync: one-command bootstrap for dotenvx encrypted env sync
+# install-dotenvx-sync: one-command bootstrap for dotenvx encrypted file sync
 # Usage:
 #   ./scripts/install-dotenvx-sync.sh [target_dir] [options]
 #
@@ -42,7 +42,7 @@ title() { echo -e "\n${BOLD}${CYAN}$1${NC}\n"; }
 
 print_help() {
   echo ""
-  echo -e "${BOLD}install-dotenvx-sync${NC} — one-command bootstrap for encrypted env sync"
+  echo -e "${BOLD}install-dotenvx-sync${NC} — one-command bootstrap for encrypted file sync"
   echo ""
   echo "Usage: $0 [target_dir] [options]"
   echo ""
@@ -107,12 +107,12 @@ write_embedded_source_script() {
 set -euo pipefail
 
 # ============================================================================
-# dotenvx-env-sync: keep plaintext .env files local and commit encrypted copies
+# dotenvx-env-sync: keep plaintext managed files local and commit encrypted copies
 # Usage:
 #   ./scripts/dotenvx-env-sync.sh <seal|unseal|check|help> [options]
 #
 # Options:
-#   --files ".env,.env.dev,.env.prod"   Explicit files (comma/space separated)
+#   --files ".env,.env.dev,.env.prod,wrangler.toml" Explicit files (comma/space separated)
 #   --all-env                            Auto-manage all local .env/.env.* files
 #   --force                              Overwrite plaintext when unsealing
 #   --keys-file .env.keys                Override dotenvx key file path
@@ -126,6 +126,7 @@ COMMENTED_ENV_PLACEHOLDER_PREFIX="DOTENVX_SYNC_COMMENTED"
 DEFAULT_PLAIN_ENV_FILES=(
   ".env.development"
   ".env.production"
+  "wrangler.toml"
 )
 
 COMMAND="help"
@@ -372,12 +373,12 @@ resolve_plain_env_files() {
   fi
 
   if [ "${#PLAIN_ENV_FILES[@]}" -eq 0 ]; then
-    err "No env files resolved"
+    err "No managed files resolved"
     echo ""
     echo "  Try one of:"
     echo "    --all-env"
-    echo "    --files '.env,.env.dev,.env.prod'"
-    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod'"
+    echo "    --files '.env,.env.dev,.env.prod,wrangler.toml'"
+    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod,wrangler.toml'"
     echo "    echo '.env.dev' > $SYNC_FILES_CONFIG"
     echo ""
     exit 1
@@ -457,7 +458,7 @@ print_managed_files() {
 }
 
 cmd_seal() {
-  title "Sealing env files with dotenvx"
+  title "Sealing managed files with dotenvx"
   detect_dotenvx
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
@@ -490,7 +491,7 @@ cmd_seal() {
   done
 
   if [ "$count" -eq 0 ]; then
-    err "No plaintext .env file found to seal"
+    err "No plaintext managed file found to seal"
     exit 1
   fi
 
@@ -507,7 +508,7 @@ cmd_seal() {
 }
 
 cmd_unseal() {
-  title "Unsealing env files from encrypted copies"
+  title "Unsealing managed files from encrypted copies"
   detect_dotenvx
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
@@ -568,7 +569,7 @@ cmd_unseal() {
 }
 
 cmd_check() {
-  title "dotenvx env sync status"
+  title "dotenvx managed file sync status"
   resolve_plain_env_files
   info "Managed files: $(print_managed_files)"
   echo ""
@@ -622,7 +623,7 @@ cmd_check() {
 
 cmd_help() {
   echo ""
-  echo -e "${BOLD}dotenvx-env-sync${NC} — commit encrypted env files, keep plaintext local"
+  echo -e "${BOLD}dotenvx-env-sync${NC} — commit encrypted managed files, keep plaintext local"
   echo ""
   echo "Usage: $0 <command> [options]"
   echo ""
@@ -643,10 +644,10 @@ cmd_help() {
   echo "  2) --files"
   echo "  3) DOTENVX_SYNC_FILES env var"
   echo "  4) $SYNC_FILES_CONFIG"
-  echo "  5) defaults: .env.development, .env.production"
+  echo "  5) defaults: .env.development, .env.production, wrangler.toml"
   echo ""
   echo "Examples:"
-  echo "  $0 seal --files '.env,.env.dev,.env.prod'"
+  echo "  $0 seal --files '.env,.env.dev,.env.prod,wrangler.toml'"
   echo "  $0 unseal --all-env"
   echo "  DOTENVX_SYNC_FILES='.env,.env.preview' $0 check"
   echo ""
@@ -813,41 +814,79 @@ resolve_managed_env_files() {
   fi
 
   if [ "${#managed_files[@]}" -eq 0 ]; then
-    managed_files=(".env.development" ".env.production")
+    managed_files=(".env.development" ".env.production" "wrangler.toml")
   fi
 
   printf '%s\n' "${managed_files[@]}"
 }
 
-update_gitignore() {
-  local gitignore="$TARGET_DIR/.gitignore"
-
-  if [ ! -f "$gitignore" ]; then
-    touch "$gitignore"
-  fi
-
-  if rg -q "# >>> dotenvx encrypted env sync >>>" "$gitignore" 2>/dev/null; then
-    info ".gitignore already contains dotenvx block"
-    return
-  fi
-
+build_gitignore_block() {
   local managed_files=()
   local file
   while IFS= read -r file; do
     managed_files+=("$file")
   done < <(resolve_managed_env_files)
 
-  {
-    echo ""
-    echo "# >>> dotenvx encrypted env sync >>>"
-    echo ".env*"
-    for file in "${managed_files[@]}"; do
-      echo "!${file}.encrypted"
-    done
-    echo "!.env.example"
-    echo ".env.keys"
-    echo "# <<< dotenvx encrypted env sync <<<"
-  } >> "$gitignore"
+  echo "# >>> dotenvx encrypted env sync >>>"
+  echo ".env*"
+  for file in "${managed_files[@]}"; do
+    case "$file" in
+      .env|.env.*) ;;
+      *) echo "$file" ;;
+    esac
+  done
+  for file in "${managed_files[@]}"; do
+    echo "!${file}.encrypted"
+  done
+  echo "!.env.example"
+  echo ".env.keys"
+  echo "# <<< dotenvx encrypted env sync <<<"
+}
+
+update_gitignore() {
+  local gitignore="$TARGET_DIR/.gitignore"
+  local block_start="# >>> dotenvx encrypted env sync >>>"
+  local block_end="# <<< dotenvx encrypted env sync <<<"
+  local tmp_file
+  local block_file
+
+  if [ ! -f "$gitignore" ]; then
+    touch "$gitignore"
+  fi
+
+  tmp_file="$(mktemp)"
+  block_file="$(mktemp)"
+  build_gitignore_block > "$block_file"
+
+  if rg -Fq "$block_start" "$gitignore" 2>/dev/null; then
+    local in_block=false
+    local line
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ "$line" = "$block_start" ]; then
+        cat "$block_file" >> "$tmp_file"
+        in_block=true
+        continue
+      fi
+
+      if [ "$in_block" = true ]; then
+        if [ "$line" = "$block_end" ]; then
+          in_block=false
+        fi
+        continue
+      fi
+
+      printf '%s\n' "$line" >> "$tmp_file"
+    done < "$gitignore"
+  else
+    cat "$gitignore" > "$tmp_file"
+    if [ -s "$tmp_file" ]; then
+      echo "" >> "$tmp_file"
+    fi
+    cat "$block_file" >> "$tmp_file"
+  fi
+
+  mv "$tmp_file" "$gitignore"
+  rm -f "$block_file"
 
   info "Updated .gitignore"
 }
@@ -886,7 +925,7 @@ install_dotenvx_dependency() {
 print_next_steps() {
   echo ""
   echo -e "${BOLD}Next steps in $TARGET_DIR:${NC}"
-  echo "  1) Create/update local env files (your naming convention)"
+  echo "  1) Create/update local env / wrangler files"
   echo "  2) Encrypt: npm run env:seal   (or env:seal:all / --files)"
   echo "  3) Commit generated *.encrypted files"
   echo "  4) On other machines: add .env.keys then run env:unseal"
