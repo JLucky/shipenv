@@ -33,6 +33,8 @@ bash "$INSTALLER" "$project_dir"
 
 grep -Fxq "wrangler.toml" "$project_dir/.gitignore"
 grep -Fxq "!wrangler.toml.encrypted" "$project_dir/.gitignore"
+grep -Fxq "wrangler.jsonc" "$project_dir/.gitignore"
+grep -Fxq "!wrangler.jsonc.encrypted" "$project_dir/.gitignore"
 
 block_count="$(grep -Fc "# >>> dotenvx encrypted env sync >>>" "$project_dir/.gitignore")"
 [ "$block_count" -eq 1 ]

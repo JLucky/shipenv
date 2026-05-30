@@ -2,7 +2,7 @@
 
 # shipenv
 
-`shipenv` provides reusable scripts to quickly enable a `dotenvx` workflow in any project: keep plaintext files local and sync encrypted files through Git. By default it manages `.env.development`, `.env.production`, and `wrangler.toml`.
+`shipenv` provides reusable scripts to quickly enable a `dotenvx` workflow in any project: keep plaintext files local and sync encrypted files through Git. By default it manages `.env.development`, `.env.production`, `wrangler.toml`, and `wrangler.jsonc`.
 
 ## Repository Contents
 
@@ -69,13 +69,13 @@ bun run env:unseal:force
 2. `--files`
 3. `DOTENVX_SYNC_FILES` environment variable
 4. project-root `.dotenvx-sync-files`
-5. defaults: `.env.development`, `.env.production`, `wrangler.toml`
+5. defaults: `.env.development`, `.env.production`, `wrangler.toml`, `wrangler.jsonc`
 
 ### Example: explicit file names
 
 ```bash
-bun run env:seal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
-bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
+bun run env:seal -- --files ".env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc"
+bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc"
 ```
 
 ### Example: team-wide fixed config
@@ -87,6 +87,7 @@ Create `.dotenvx-sync-files`:
 .env.dev
 .env.prod
 wrangler.toml
+wrangler.jsonc
 ```
 
 Then your team can just run:
@@ -98,19 +99,20 @@ bun run env:unseal
 
 ### Compatibility Notes
 
-- Older projects that previously synced only `.env*` files will now also treat `wrangler.toml` as a default managed file
-- If a project does not have `wrangler.toml`, `seal` / `unseal` / `check` will just skip it and leave existing `.env*.encrypted` behavior unchanged
-- If plaintext `wrangler.toml` exists locally, the next `seal` will generate `wrangler.toml.encrypted` by default
-- If `wrangler.toml.encrypted` already exists in Git, the next `unseal` will restore `wrangler.toml` by default
+- Older projects that previously synced only `.env*` files will now also treat `wrangler.toml` and `wrangler.jsonc` as default managed files
+- If a project does not have `wrangler.toml` / `wrangler.jsonc`, `seal` / `unseal` / `check` will just skip them and leave existing `.env*.encrypted` behavior unchanged
+- If plaintext `wrangler.toml` or `wrangler.jsonc` exists locally, the next `seal` will generate the matching `*.encrypted` file by default
+- If `wrangler.toml.encrypted` or `wrangler.jsonc.encrypted` already exists in Git, the next `unseal` will restore the plaintext file by default
 
 ## Security Notes
 
 - Commit: `*.encrypted`
-- Do not commit: `.env.keys`, any plaintext `.env*`, or plaintext `wrangler.toml`
+- Do not commit: `.env.keys`, any plaintext `.env*`, plaintext `wrangler.toml`, or plaintext `wrangler.jsonc`
 - Store `.env.keys` in 1Password / Bitwarden or another password manager
 - You can also inject private keys through env vars (for example `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`)
 - Commented config lines in env style (for example `#API_KEY=xxx` and `# API_KEY = xxx`) are encrypted on `seal` and restored as comments on `unseal`
 - `wrangler.toml` content round-trips through `seal` / `unseal`, but `dotenvx` may normalize TOML spacing on restore
+- `wrangler.jsonc` is encrypted as a full file, so JSON property values are not left in the encrypted file and restore does not insert a JSONC-breaking `#` header
 
 ## Troubleshooting
 

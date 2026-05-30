@@ -7,7 +7,7 @@ set -euo pipefail
 #   ./scripts/dotenvx-env-sync.sh <seal|unseal|check|help> [options]
 #
 # Options:
-#   --files ".env,.env.dev,.env.prod,wrangler.toml" Explicit files (comma/space separated)
+#   --files ".env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc" Explicit files (comma/space separated)
 #   --all-env                            Auto-manage all local .env/.env.* files
 #   --force                              Overwrite plaintext when unsealing
 #   --keys-file .env.keys                Override dotenvx key file path
@@ -22,6 +22,7 @@ DEFAULT_PLAIN_ENV_FILES=(
   ".env.development"
   ".env.production"
   "wrangler.toml"
+  "wrangler.jsonc"
 )
 
 COMMAND="help"
@@ -100,6 +101,90 @@ trim_decrypted_meta() {
     /^DOTENV_PUBLIC_KEY[^=]*=.*$/ { next }
     { print }
   ' | sed '/./,$!d'
+}
+
+strip_dotenvx_key_file_comment() {
+  sed -E '/^DOTENV_PUBLIC_KEY[^=]*=/ s/[[:space:]]+# -fk .*$//'
+}
+
+base64_decode() {
+  if printf '' | base64 --decode >/dev/null 2>&1; then
+    base64 --decode
+  else
+    base64 -D
+  fi
+}
+
+strip_dotenvx_file_header() {
+  local plain_file="$1"
+  awk -v header="# $plain_file" '
+    BEGIN { skipped = 0 }
+    skipped == 0 && $0 == header { skipped = 1; next }
+    { print }
+  '
+}
+
+is_full_file_encryption() {
+  local file="$1"
+  case "$file" in
+    *.json|*.jsonc) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+prepare_plain_for_encryption() {
+  local plain_file="$1"
+  local mode="${2:-plain}"
+  if is_full_file_encryption "$plain_file"; then
+    local key
+    key="$(managed_file_payload_key "$plain_file")"
+    local encoded
+    encoded="$(base64 < "$plain_file" | tr -d '\n')"
+    printf '%s=%s\n' "$key" "$encoded"
+    return
+  fi
+
+  commented_env_to_placeholder "$plain_file" "$mode"
+}
+
+prepare_encrypted_for_decryption() {
+  local encrypted_file="$1"
+  local plain_file="$2"
+  if is_full_file_encryption "$plain_file"; then
+    cat "$encrypted_file"
+    return
+  fi
+
+  commented_env_to_placeholder "$encrypted_file" encrypted
+}
+
+restore_decrypted_output() {
+  local plain_file="$1"
+  if is_full_file_encryption "$plain_file"; then
+    local key
+    key="$(managed_file_payload_key "$plain_file")"
+    awk -v key="$key" -F= '
+      $1 == key {
+        value = substr($0, length(key) + 2)
+        print value
+        found = 1
+        exit
+      }
+      END {
+        if (!found) exit 1
+      }
+    ' | base64_decode
+    return
+  fi
+
+  strip_dotenvx_file_header "$plain_file" | placeholder_to_commented_env
+}
+
+managed_file_payload_key() {
+  local file="$1"
+  local key
+  key="$(printf '%s' "$file" | tr '[:lower:]./-' '[:upper:]___' | sed 's/[^A-Z0-9_]/_/g')"
+  printf 'DOTENVX_SYNC_FILE__%s\n' "$key"
 }
 
 commented_env_to_placeholder() {
@@ -272,8 +357,8 @@ resolve_plain_env_files() {
     echo ""
     echo "  Try one of:"
     echo "    --all-env"
-    echo "    --files '.env,.env.dev,.env.prod,wrangler.toml'"
-    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod,wrangler.toml'"
+    echo "    --files '.env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc'"
+    echo "    export DOTENVX_SYNC_FILES='.env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc'"
     echo "    echo '.env.dev' > $SYNC_FILES_CONFIG"
     echo ""
     exit 1
@@ -375,8 +460,8 @@ cmd_seal() {
     tmp_plain_file="$tmp_plain_dir/$(basename "$plain_file")"
     tmp_encrypted_file="$(mktemp)"
 
-    commented_env_to_placeholder "$plain_file" plain > "$tmp_plain_file"
-    run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" --stdout > "$tmp_encrypted_file"
+    prepare_plain_for_encryption "$plain_file" plain > "$tmp_plain_file"
+    run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" --stdout | strip_dotenvx_key_file_comment > "$tmp_encrypted_file"
     placeholder_to_commented_env "$tmp_encrypted_file" > "$encrypted_file"
 
     rm -f "$tmp_encrypted_file"
@@ -435,8 +520,8 @@ cmd_unseal() {
     tmp_file="$(mktemp)"
     tmp_encrypted_file="$(mktemp)"
 
-    commented_env_to_placeholder "$encrypted_file" encrypted > "$tmp_encrypted_file"
-    run_dotenvx decrypt -f "$tmp_encrypted_file" -fk "$ENV_KEYS_FILE" --stdout | trim_decrypted_meta | placeholder_to_commented_env > "$tmp_file"
+    prepare_encrypted_for_decryption "$encrypted_file" "$plain_file" > "$tmp_encrypted_file"
+    run_dotenvx decrypt -f "$tmp_encrypted_file" -fk "$ENV_KEYS_FILE" --stdout | trim_decrypted_meta | restore_decrypted_output "$plain_file" > "$tmp_file"
 
     rm -f "$tmp_encrypted_file"
     mv "$tmp_file" "$plain_file"
@@ -539,10 +624,10 @@ cmd_help() {
   echo "  2) --files"
   echo "  3) DOTENVX_SYNC_FILES env var"
   echo "  4) $SYNC_FILES_CONFIG"
-  echo "  5) defaults: .env.development, .env.production, wrangler.toml"
+  echo "  5) defaults: .env.development, .env.production, wrangler.toml, wrangler.jsonc"
   echo ""
   echo "Examples:"
-  echo "  $0 seal --files '.env,.env.dev,.env.prod,wrangler.toml'"
+  echo "  $0 seal --files '.env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc'"
   echo "  $0 unseal --all-env"
   echo "  DOTENVX_SYNC_FILES='.env,.env.preview' $0 check"
   echo ""

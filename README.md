@@ -2,7 +2,7 @@
 
 # shipenv
 
-`shipenv` 提供一套可复用脚本，用于在任意项目中快速启用 `dotenvx` 的「明文本地保存、密文入库同步」工作流，默认会处理 `.env.development`、`.env.production` 和 `wrangler.toml`。
+`shipenv` 提供一套可复用脚本，用于在任意项目中快速启用 `dotenvx` 的「明文本地保存、密文入库同步」工作流，默认会处理 `.env.development`、`.env.production`、`wrangler.toml` 和 `wrangler.jsonc`。
 
 ## 仓库内容
 
@@ -69,13 +69,13 @@ bun run env:unseal:force
 2. `--files`
 3. 环境变量 `DOTENVX_SYNC_FILES`
 4. 项目根 `.dotenvx-sync-files`
-5. 默认：`.env.development`, `.env.production`, `wrangler.toml`
+5. 默认：`.env.development`, `.env.production`, `wrangler.toml`, `wrangler.jsonc`
 
 ### 示例：显式指定文件名
 
 ```bash
-bun run env:seal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
-bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
+bun run env:seal -- --files ".env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc"
+bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml,wrangler.jsonc"
 ```
 
 ### 示例：团队固定文件配置
@@ -87,6 +87,7 @@ bun run env:unseal -- --files ".env,.env.dev,.env.prod,wrangler.toml"
 .env.dev
 .env.prod
 wrangler.toml
+wrangler.jsonc
 ```
 
 然后团队直接执行：
@@ -98,19 +99,20 @@ bun run env:unseal
 
 ### 兼容性说明
 
-- 老项目如果此前只在同步 `.env*`，升级后默认也会把 `wrangler.toml` 视为受管文件之一
-- 如果项目里没有 `wrangler.toml`，`seal` / `unseal` / `check` 只会提示 skipped，不会破坏现有 `.env*.encrypted`
-- 如果项目里已有本地 `wrangler.toml`，下次 `seal` 会默认生成 `wrangler.toml.encrypted`
-- 如果仓库里已有 `wrangler.toml.encrypted`，下次 `unseal` 会默认尝试恢复 `wrangler.toml`
+- 老项目如果此前只在同步 `.env*`，升级后默认也会把 `wrangler.toml` 和 `wrangler.jsonc` 视为受管文件
+- 如果项目里没有 `wrangler.toml` / `wrangler.jsonc`，`seal` / `unseal` / `check` 只会提示 skipped，不会破坏现有 `.env*.encrypted`
+- 如果项目里已有本地 `wrangler.toml` 或 `wrangler.jsonc`，下次 `seal` 会默认生成对应的 `*.encrypted`
+- 如果仓库里已有 `wrangler.toml.encrypted` 或 `wrangler.jsonc.encrypted`，下次 `unseal` 会默认尝试恢复明文文件
 
 ## 安全建议
 
 - 提交：`*.encrypted`
-- 不提交：`.env.keys`、任何明文 `.env*`、明文 `wrangler.toml`
+- 不提交：`.env.keys`、任何明文 `.env*`、明文 `wrangler.toml`、明文 `wrangler.jsonc`
 - 建议把 `.env.keys` 保存在 1Password/Bitwarden 等密码管理器中
 - 也可使用环境变量注入私钥（如 `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`）
 - 以 `#` 开头且符合注释配置格式的行（如 `#API_KEY=xxx`、`# API_KEY = xxx`）会在 `seal` 时加密，`unseal` 时恢复为注释格式
 - `wrangler.toml` 经过 `seal` / `unseal` 后，内容会恢复，但空格格式可能被 `dotenvx` 规范化
+- `wrangler.jsonc` 会作为完整文件加密，不会把 JSON 属性值留在密文文件里，解密后也不会插入破坏 JSONC 的 `#` 注释头
 
 ## 故障排查
 
