@@ -976,6 +976,61 @@ update_gitignore() {
   info "Updated .gitignore"
 }
 
+resolve_pnpm_allow_builds_placeholders() {
+  local workspace_file="${1:-pnpm-workspace.yaml}"
+
+  if [ ! -f "$workspace_file" ]; then
+    return 1
+  fi
+
+  if ! grep -Fq "set this to true or false" "$workspace_file"; then
+    return 1
+  fi
+
+  run_js '
+const fs = require("fs");
+const path = process.argv[1];
+const text = fs.readFileSync(path, "utf8");
+const approvals = new Map([
+  ["core-js", false],
+  ["esbuild", true],
+  ["sharp", true],
+  ["unrs-resolver", true],
+  ["workerd", true]
+]);
+let changed = false;
+const next = text.replace(/^([ \t]*)([^:\n]+):[ \t]*set this to true or false[ \t]*$/gm, (line, indent, name) => {
+  const decision = approvals.get(name.trim());
+  if (typeof decision !== "boolean") {
+    return line;
+  }
+  changed = true;
+  return `${indent}${name.trim()}: ${decision ? "true" : "false"}`;
+});
+if (!changed) {
+  process.exit(2);
+}
+fs.writeFileSync(path, next);
+' "$workspace_file"
+}
+
+install_with_pnpm() {
+  if pnpm add -D @dotenvx/dotenvx; then
+    info "Installed via pnpm"
+    return
+  fi
+
+  if resolve_pnpm_allow_builds_placeholders "pnpm-workspace.yaml"; then
+    warn "Resolved pnpm build-script approval placeholders"
+    pnpm add -D @dotenvx/dotenvx
+    pnpm rebuild
+    info "Installed via pnpm"
+    return
+  fi
+
+  exit 1
+}
+
 install_dotenvx_dependency() {
   if [ "$INSTALL_DOTENVX" != true ]; then
     return
@@ -991,8 +1046,7 @@ install_dotenvx_dependency() {
     fi
 
     if [ -f "pnpm-lock.yaml" ] && command -v pnpm >/dev/null 2>&1; then
-      pnpm add -D @dotenvx/dotenvx
-      info "Installed via pnpm"
+      install_with_pnpm
       return
     fi
 
