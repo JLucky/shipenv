@@ -20,6 +20,8 @@ TOML
 
 bash "$SYNC_SCRIPT" seal
 test -f wrangler.toml.encrypted
+test -f .env.keys
+grep -Eq '^DOTENV_PRIVATE_KEY_WRANGLER[._]TOML=' .env.keys
 
 rm -f wrangler.toml
 bash "$SYNC_SCRIPT" unseal --force

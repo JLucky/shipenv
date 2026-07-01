@@ -108,6 +108,7 @@ bun run env:unseal
 
 - Commit: `*.encrypted`
 - Do not commit: `.env.keys`, any plaintext `.env*`, plaintext `wrangler.toml`, or plaintext `wrangler.jsonc`
+- `seal` generates/updates `.env.keys` for any existing managed file, including projects that only have `wrangler.toml` or `wrangler.jsonc`
 - Store `.env.keys` in 1Password / Bitwarden or another password manager
 - You can also inject private keys through env vars (for example `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`)
 - Commented config lines in env style (for example `#API_KEY=xxx` and `# API_KEY = xxx`) are encrypted on `seal` and restored as comments on `unseal`

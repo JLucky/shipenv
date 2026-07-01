@@ -108,6 +108,7 @@ bun run env:unseal
 
 - 提交：`*.encrypted`
 - 不提交：`.env.keys`、任何明文 `.env*`、明文 `wrangler.toml`、明文 `wrangler.jsonc`
+- `seal` 会为任何实际存在的受管文件生成/更新 `.env.keys`，包括项目里只有 `wrangler.toml` 或 `wrangler.jsonc` 的情况
 - 建议把 `.env.keys` 保存在 1Password/Bitwarden 等密码管理器中
 - 也可使用环境变量注入私钥（如 `DOTENV_PRIVATE_KEY`, `DOTENV_PRIVATE_KEY_PROD`）
 - 以 `#` 开头且符合注释配置格式的行（如 `#API_KEY=xxx`、`# API_KEY = xxx`）会在 `seal` 时加密，`unseal` 时恢复为注释格式

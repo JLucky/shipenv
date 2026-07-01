@@ -32,6 +32,8 @@ JSONC
 
 bash "$SYNC_SCRIPT" seal
 test -f wrangler.jsonc.encrypted
+test -f .env.keys
+grep -Eq '^DOTENV_PRIVATE_KEY_WRANGLER[._]JSONC=' .env.keys
 if grep -Fq "$project_dir" wrangler.jsonc.encrypted; then
   echo "wrangler.jsonc.encrypted must not contain local key-file paths" >&2
   exit 1

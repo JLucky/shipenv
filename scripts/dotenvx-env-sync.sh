@@ -461,7 +461,8 @@ cmd_seal() {
     tmp_encrypted_file="$(mktemp)"
 
     prepare_plain_for_encryption "$plain_file" plain > "$tmp_plain_file"
-    run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" --stdout | strip_dotenvx_key_file_comment > "$tmp_encrypted_file"
+    run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" >/dev/null
+    strip_dotenvx_key_file_comment < "$tmp_plain_file" > "$tmp_encrypted_file"
     placeholder_to_commented_env "$tmp_encrypted_file" > "$encrypted_file"
 
     rm -f "$tmp_encrypted_file"
