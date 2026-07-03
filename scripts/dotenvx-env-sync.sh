@@ -95,6 +95,42 @@ encrypted_path_for() {
   echo "${plain_file}.encrypted"
 }
 
+dotenvx_work_file_for() {
+  local dir="$1"
+  local plain_file="$2"
+  case "$plain_file" in
+    .env|.env.*)
+      echo "$dir/$(basename "$plain_file")"
+      ;;
+    *)
+      echo "$dir/.env.$(env_suffix_for_file "$plain_file")"
+      ;;
+  esac
+}
+
+dotenvx_public_key_var_for() {
+  local plain_file="$1"
+  local suffix
+  suffix="$(env_suffix_for_file "$plain_file")"
+  if [ -n "$suffix" ]; then
+    echo "DOTENV_PUBLIC_KEY_${suffix}"
+  else
+    echo "DOTENV_PUBLIC_KEY"
+  fi
+}
+
+copy_existing_dotenvx_public_key() {
+  local encrypted_file="$1"
+  local plain_file="$2"
+  if [ ! -f "$encrypted_file" ]; then
+    return
+  fi
+
+  local key_var
+  key_var="$(dotenvx_public_key_var_for "$plain_file")"
+  awk -v key="$key_var" -F= '$1 == key { print; exit }' "$encrypted_file"
+}
+
 trim_decrypted_meta() {
   awk '
     /^#\// { next }
@@ -117,9 +153,12 @@ base64_decode() {
 
 strip_dotenvx_file_header() {
   local plain_file="$1"
-  awk -v header="# $plain_file" '
+  local dotenvx_file
+  dotenvx_file="$(dotenvx_work_file_for "" "$plain_file")"
+  dotenvx_file="${dotenvx_file#/}"
+  awk -v header="# $plain_file" -v dotenvx_header="# $dotenvx_file" '
     BEGIN { skipped = 0 }
-    skipped == 0 && $0 == header { skipped = 1; next }
+    skipped == 0 && ($0 == header || $0 == dotenvx_header) { skipped = 1; next }
     { print }
   '
 }
@@ -457,10 +496,13 @@ cmd_seal() {
     local tmp_encrypted_file
     encrypted_file="$(encrypted_path_for "$plain_file")"
     tmp_plain_dir="$(mktemp -d)"
-    tmp_plain_file="$tmp_plain_dir/$(basename "$plain_file")"
+    tmp_plain_file="$(dotenvx_work_file_for "$tmp_plain_dir" "$plain_file")"
     tmp_encrypted_file="$(mktemp)"
 
-    prepare_plain_for_encryption "$plain_file" plain > "$tmp_plain_file"
+    {
+      copy_existing_dotenvx_public_key "$encrypted_file" "$plain_file"
+      prepare_plain_for_encryption "$plain_file" plain
+    } > "$tmp_plain_file"
     run_dotenvx encrypt -f "$tmp_plain_file" -fk "$ENV_KEYS_FILE" >/dev/null
     strip_dotenvx_key_file_comment < "$tmp_plain_file" > "$tmp_encrypted_file"
     placeholder_to_commented_env "$tmp_encrypted_file" > "$encrypted_file"
