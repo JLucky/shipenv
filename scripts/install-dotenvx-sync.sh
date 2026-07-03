@@ -986,12 +986,16 @@ update_gitignore() {
   block_file="$(mktemp)"
   build_gitignore_block > "$block_file"
 
-  if rg -Fq "$block_start" "$gitignore" 2>/dev/null; then
+  if grep -Fq "$block_start" "$gitignore" 2>/dev/null; then
     local in_block=false
+    local wrote_block=false
     local line
     while IFS= read -r line || [ -n "$line" ]; do
       if [ "$line" = "$block_start" ]; then
-        cat "$block_file" >> "$tmp_file"
+        if [ "$wrote_block" = false ]; then
+          cat "$block_file" >> "$tmp_file"
+          wrote_block=true
+        fi
         in_block=true
         continue
       fi

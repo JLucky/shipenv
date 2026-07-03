@@ -8,7 +8,14 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 project_dir="$tmpdir/project"
-mkdir -p "$project_dir"
+fake_bin="$tmpdir/bin"
+mkdir -p "$project_dir" "$fake_bin"
+
+cat > "$fake_bin/rg" <<'SH'
+#!/usr/bin/env bash
+exit 127
+SH
+chmod +x "$fake_bin/rg"
 
 cat > "$project_dir/package.json" <<'JSON'
 {
@@ -27,9 +34,18 @@ cat > "$project_dir/.gitignore" <<'GITIGNORE'
 !.env.example
 .env.keys
 # <<< dotenvx encrypted env sync <<<
+
+# >>> dotenvx encrypted env sync >>>
+.env*
+!.env.development.encrypted
+!.env.production.encrypted
+!.env.example
+.env.keys
+# <<< dotenvx encrypted env sync <<<
 GITIGNORE
 
-bash "$INSTALLER" "$project_dir"
+PATH="$fake_bin:$PATH" bash "$INSTALLER" "$project_dir"
+PATH="$fake_bin:$PATH" bash "$INSTALLER" "$project_dir"
 
 grep -Fxq "wrangler.toml" "$project_dir/.gitignore"
 grep -Fxq "!wrangler.toml.encrypted" "$project_dir/.gitignore"
